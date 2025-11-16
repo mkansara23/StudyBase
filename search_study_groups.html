@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Study Groups</title>
+</head>
+<body>
+    <h1>Search Study Groups</h1>
+    <form method="get" action="results_study_groups.html">
+        <label for="course_id">Filter by Course ID:</label>
+        <input type="text" id="course_id" name="course_id" maxlength="10"><br><br>
+
+        <label for="day">Filter by Day:</label>
+        <select id="day" name="day">
+            <option value="">Any</option>
+            <option value="Mon">Monday</option>
+            <option value="Tue">Tuesday</option>
+            <option value="Wed">Wednesday</option>
+            <option value="Thu">Thursday</option>
+            <option value="Fri">Friday</option>
+            <option value="Sat">Saturday</option>
+            <option value="Sun">Sunday</option>
+        </select><br><br>
+
+        <button type="submit">Search</button>
+    </form>
+
+    <p>Later, this form will submit to a PHP script that queries the database.</p>
+</body>
+</html>
