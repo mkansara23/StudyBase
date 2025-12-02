@@ -1,57 +1,100 @@
+<?php
+session_start();
+include 'db.php';
+
+if (!isset($_SESSION['user_id'])) {
+    die("Please <a href='login_secure.html'>login</a> to create a group.");
+}
+
+$host_id = $_SESSION['user_id']; 
+$selected_course_id = isset($_GET['course_id']) ? $_GET['course_id'] : "";
+
+$courses_result = $conn->query("SELECT course_id, course_code, course_name FROM Courses");
+$locations_result = $conn->query("SELECT location_id, location_code, building, room FROM Location");
+
+$sections_options = "";
+if (!empty($selected_course_id)) {
+    $sections_sql = "SELECT section_id, section_code 
+                     FROM Sections 
+                     WHERE section_of = '$selected_course_id'";
+    $sections_result = $conn->query($sections_sql);
+    
+    if ($sections_result->num_rows > 0) {
+        while($row = $sections_result->fetch_assoc()) {
+            $sections_options .= "<option value='" . $row['section_id'] . "'>Section " . $row['section_code'] . "</option>";
+        }
+    } else {
+        $sections_options = "<option value=''>No sections found</option>";
+    }
+} else {
+    $sections_options = "<option value=''>-- Select a Course First --</option>";
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $description = $_POST['description'];
+    $max_participants = $_POST['max_participants'];
+    $course_id = $_POST['final_course_id']; 
+    $location_id = $_POST['location_id'];
+    $day = $_POST['day'];
+    $start_time = $_POST['start_time'];
+    $end_time = $_POST['end_time'];
+    $repeat = isset($_POST['repeat']) ? 1 : 0;
+    
+    if (empty($course_id)) {
+         $message = "<p style='color:red'>Error: Please select a course first.</p>";
+    } else {
+        $sql = "INSERT INTO Study_Groups (description, max_participants, current_participants, host_id, course_id, location_id, start_time, end_time, day, repeat_flag) 
+                VALUES ('$description', $max_participants, 0, '$host_id', $course_id, '$location_id', '$start_time', '$end_time', '$day', $repeat)";
+
+        if ($conn->query($sql) === TRUE) {
+            $new_group_id = $conn->insert_id;
+            $message = "<p style='color:green'>Study Group created successfully! Group ID: <strong>$new_group_id</strong></p>";
+        } else {
+            $message = "<p style='color:red'>Error: " . $conn->error . "</p>";
+        }
+    }
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Create Study Group</title>
+    <script>
+        function reloadWithCourse() {
+            var courseId = document.getElementById("course_selector").value;
+            window.location.href = "create_study_group.php?course_id=" + courseId;
+        }
+    </script>
 </head>
 <body>
     <h1>Create Study Group</h1>
+    <p>Host: <strong><?php echo $_SESSION['user_name']; ?></strong> (ID: <?php echo $host_id; ?>)</p>
 
-    <?php
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        include 'db.php';
+    <?php if (isset($message)) echo $message; ?>
 
-        $group_id = $_POST['group_id'];
-        $description = $_POST['description'];
-        $max_participants = $_POST['max_participants'];
-        $host_id = $_POST['host_id'];
-        $course_id = !empty($_POST['course_id']) ? $_POST['course_id'] : NULL; // Handle optional
-        $location_id = $_POST['location_id'];
-        $day = $_POST['day'];
-        $start_time = $_POST['start_time'];
-        $end_time = $_POST['end_time'];
-        
-        // Checkbox handling: if checked, value is 1, else 0
-        $repeat = isset($_POST['repeat']) ? 1 : 0;
-
-        // Simple validation
-        if (empty($group_id) || empty($host_id) || empty($location_id)) {
-             echo "<p style='color:red'>Error: Group ID, Host ID, and Location ID are required.</p>";
-        } else {
-            // Insert Query
-            // Note: For course_id, we need to handle NULL values properly in SQL string if it's empty
-            $course_val = $course_id ? "'$course_id'" : "NULL";
-
-            $sql = "INSERT INTO Study_Groups (group_id, description, max_participants, current_participants, host_id, course_id, location_id, start_time, end_time, day, repeat_flag) 
-                    VALUES ('$group_id', '$description', $max_participants, 0, '$host_id', $course_val, '$location_id', '$start_time', '$end_time', '$day', $repeat)";
-
-            if ($conn->query($sql) === TRUE) {
-                echo "<p style='color:green'>Study Group created successfully!</p>";
-            } else {
-                echo "<p style='color:red'>Error: " . $conn->error . "</p>";
-                // Common error: Host ID or Location ID doesn't exist
-                if (strpos($conn->error, 'foreign key constraint') !== false) {
-                    echo "<p>Tip: Ensure the Host ID (User) and Location ID exist in the database first.</p>";
-                }
+    <label for="course_selector"><strong>Step 1: Select Course</strong></label><br>
+    <select id="course_selector" onchange="reloadWithCourse()">
+        <option value="">-- Select Course --</option>
+        <?php
+        if ($courses_result->num_rows > 0) {
+            while($row = $courses_result->fetch_assoc()) {
+                $selected = ($row['course_id'] == $selected_course_id) ? "selected" : "";
+                echo "<option value='" . $row['course_id'] . "' $selected>" . $row['course_code'] . " - " . $row['course_name'] . "</option>";
             }
         }
-        $conn->close();
-    }
-    ?>
+        ?>
+    </select>
+    <br><br>
 
     <form method="post" action="create_study_group.php">
-        <label for="group_id">Group ID:</label>
-        <input type="text" id="group_id" name="group_id" maxlength="10" required><br><br>
+        <input type="hidden" name="final_course_id" value="<?php echo $selected_course_id; ?>">
+
+        <label for="section_id"><strong>Step 2: Select Section</strong></label><br>
+        <select id="section_id" name="section_id">
+            <?php echo $sections_options; ?>
+        </select><br><br>
 
         <label for="description">Description:</label><br>
         <textarea id="description" name="description" maxlength="1024" rows="4" cols="50"></textarea><br><br>
@@ -59,14 +102,17 @@
         <label for="max_participants">Max Participants:</label>
         <input type="number" id="max_participants" name="max_participants" min="1" max="100" value="10" required><br><br>
 
-        <label for="host_id">Host User ID:</label>
-        <input type="text" id="host_id" name="host_id" maxlength="10" required><br><br>
-
-        <label for="course_id">Course ID (optional):</label>
-        <input type="text" id="course_id" name="course_id" maxlength="10"><br><br>
-
-        <label for="location_id">Location ID:</label>
-        <input type="text" id="location_id" name="location_id" maxlength="10" required><br><br>
+        <label for="location_id">Location:</label>
+        <select id="location_id" name="location_id" required>
+            <option value="">-- Select Location --</option>
+            <?php
+            if ($locations_result->num_rows > 0) {
+                while($row = $locations_result->fetch_assoc()) {
+                    echo "<option value='" . $row['location_id'] . "'>" . $row['location_code'] . " - " . $row['building'] . " " . $row['room'] . "</option>";
+                }
+            }
+            ?>
+        </select><br><br>
 
         <label for="day">Day of Week:</label>
         <select id="day" name="day" required>
@@ -93,6 +139,6 @@
     </form>
 
     <br>
-    <a href="index.html">Back to Home</a>
+    <a href="dashboard.php">Back to Dashboard</a>
 </body>
 </html>
