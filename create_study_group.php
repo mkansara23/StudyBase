@@ -31,7 +31,7 @@ if (!empty($selected_course_id)) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $description = $_POST['description'];
+    $description = $conn->real_escape_string($_POST['description']);
     $max_participants = $_POST['max_participants'];
     $course_id = $_POST['final_course_id']; 
     $location_id = $_POST['location_id'];
